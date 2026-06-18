@@ -1,0 +1,4 @@
+{
+  "_comment": "Accepted PRE-EXISTING serious/critical a11y violations on the live site, keyed by page type. journey-forge populates this when its first scan finds violations the site already ships (real defects to report upstream). Baselining keeps the suite green for known debt while still failing on any NEW regression. Remove an entry once the site fixes it.",
+  "pageTypes": {}
+}

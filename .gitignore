@@ -1,0 +1,31 @@
+# ai-skills tracks ONLY the skill(s) under .claude/skills/.
+# Everything below is generated when you bootstrap/test a skill in place — keep it untracked
+# so `git status` stays clean and the repo remains a portable skill library.
+
+# deps & Playwright outputs
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+*.log
+
+# env
+.env
+.env.example
+
+# harness scaffolded by journey-forge's scripts/scaffold.mjs (root-anchored so the skill's
+# own assets/scaffold/* templates are never ignored)
+/package.json
+/package-lock.json
+/playwright.config.ts
+/tsconfig.json
+/fixtures/
+/pages/
+/tests/
+/journeys/
+
+# journey-forge generated outputs
+/page-types.registry.json
+/sitemap-snapshot.json
+/a11y-baseline.json
