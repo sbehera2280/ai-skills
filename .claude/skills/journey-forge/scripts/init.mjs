@@ -32,14 +32,16 @@ if (!baseUrl) {
   process.exit(2);
 }
 
-// Resolve npm/npx to their .cmd shims on Windows so we can spawn WITHOUT shell:true
-// (shell:true concatenates args unescaped — an injection risk on user-supplied URLs).
+// On Windows, npm/npx are .cmd shims that require shell:true to resolve correctly,
+// especially when the Node install path contains spaces (e.g. C:\Program Files\nodejs).
+// The node invocations that carry user-supplied URLs use shell:false to avoid injection.
 const isWin = process.platform === 'win32';
-const bin = (name) => (isWin && (name === 'npm' || name === 'npx') ? `${name}.cmd` : name);
 
 function run(label, cmd, args, { soft = false } = {}) {
   console.log(`\n▶ ${label}\n  ${cmd} ${args.join(' ')}`);
-  const res = spawnSync(bin(cmd), args, { stdio: 'inherit', shell: false, cwd: process.cwd() });
+  // npm/npx on Windows need shell:true to resolve .cmd shims in paths with spaces.
+  const useShell = isWin && (cmd === 'npm' || cmd === 'npx');
+  const res = spawnSync(cmd, args, { stdio: 'inherit', shell: useShell, cwd: process.cwd() });
   if (res.status !== 0) {
     if (soft) {
       console.warn(`\n⚠ ${label} did not complete (exit ${res.status}). The harness is still set up — re-run this step manually later.`);
