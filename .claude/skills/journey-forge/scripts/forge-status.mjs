@@ -28,6 +28,7 @@ function arg(name, def) {
 }
 const registryPath = arg('--registry', 'page-types.registry.json');
 const journeysDir = arg('--journeys', 'journeys');
+const testsDir = arg('--tests', 'tests');
 const asJson = process.argv.includes('--json');
 
 const registry = existsSync(registryPath)
@@ -53,9 +54,14 @@ const rows = Object.entries(registry.pageTypes ?? {}).map(([key, pt]) => {
   const journeyStatus = journey?.status ?? 'none';
   const buildStatus = pt.status ?? 'discovered';
   // A confirmed journey edited AFTER its spec was generated needs a rebuild even if it
-  // was previously passing — so enriching a journey in plain English re-flags it.
+  // was previously passing — so enriching a journey in plain English re-flags it. The
+  // generated spec lives at tests/<pageType>.spec.ts (deterministic); fall back to an
+  // explicit registry `spec` path if one is ever recorded.
+  const specPath = pt.spec ?? join(testsDir, `${key}.spec.ts`);
   const changedSinceBuild =
-    journeyStatus === 'confirmed' && !!pt.spec && mtime(journey.path) > mtime(pt.spec);
+    journeyStatus === 'confirmed' &&
+    existsSync(specPath) &&
+    mtime(journey.path) > mtime(specPath);
   const readyToBuild =
     journeyStatus === 'confirmed' && (buildStatus !== 'passing' || changedSinceBuild);
   const needsReview = journeyStatus === 'draft';
