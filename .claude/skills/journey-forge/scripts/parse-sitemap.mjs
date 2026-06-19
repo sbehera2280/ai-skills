@@ -7,39 +7,102 @@
 //
 // Usage:
 //   node parse-sitemap.mjs --sitemap <url> [--min-cluster 5] [--section-depth 2]
+//                          [--include <regex>]... [--exclude <regex>]...
+//                          [--config forge.config.json]
 //                          [--registry page-types.registry.json]
 //                          [--out sitemap-snapshot.json] [--json]
+//
+// Defaults for sitemap / min-cluster / section-depth / include / exclude can also live in a
+// version-controlled `forge.config.json` (so re-runs are reproducible); CLI flags override it.
+// include/exclude are JS regex matched case-insensitively against the URL PATH — use them to
+// drop staging test pages (e.g. exclude ["^/test/","/sandbox/"]). No filters = all URLs.
 //
 // Output: writes the snapshot file, and prints a human summary (or --json for the
 // raw { snapshot, diff } the skill consumes).
 
 import { XMLParser } from 'fast-xml-parser';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { fingerprintPageType, readRegistry, diffPageTypes } from './registry-lib.mjs';
+
+// ---------- config file (persisted defaults; CLI overrides) ----------
+function loadConfig(path) {
+  if (!existsSync(path)) return {};
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    console.error(`ERROR: ${path} is not valid JSON: ${err.message}`);
+    process.exit(2);
+  }
+}
 
 // ---------- args ----------
 function parseArgs(argv) {
-  const args = {
-    minCluster: 5,
-    sectionDepth: 2,
-    registry: 'page-types.registry.json',
-    out: 'sitemap-snapshot.json',
-    json: false,
-  };
+  // Collect raw CLI values first so we can layer them over the config file.
+  const cli = { include: [], exclude: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--sitemap') args.sitemap = argv[++i];
-    else if (a === '--min-cluster') args.minCluster = parseInt(argv[++i], 10);
-    else if (a === '--section-depth') args.sectionDepth = parseInt(argv[++i], 10);
-    else if (a === '--registry') args.registry = argv[++i];
-    else if (a === '--out') args.out = argv[++i];
-    else if (a === '--json') args.json = true;
+    if (a === '--sitemap') cli.sitemap = argv[++i];
+    else if (a === '--min-cluster') cli.minCluster = parseInt(argv[++i], 10);
+    else if (a === '--section-depth') cli.sectionDepth = parseInt(argv[++i], 10);
+    else if (a === '--registry') cli.registry = argv[++i];
+    else if (a === '--out') cli.out = argv[++i];
+    else if (a === '--config') cli.config = argv[++i];
+    else if (a === '--include') cli.include.push(argv[++i]);
+    else if (a === '--exclude') cli.exclude.push(argv[++i]);
+    else if (a === '--json') cli.json = true;
   }
+
+  const cfg = loadConfig(cli.config ?? 'forge.config.json');
+
+  // Precedence: CLI > config > built-in default. A repeatable --include/--exclude flag, when
+  // present at all, REPLACES that array from config (independent per array).
+  const args = {
+    sitemap: cli.sitemap ?? cfg.sitemap,
+    minCluster: cli.minCluster ?? cfg.minCluster ?? 5,
+    sectionDepth: cli.sectionDepth ?? cfg.sectionDepth ?? 2,
+    registry: cli.registry ?? 'page-types.registry.json',
+    out: cli.out ?? 'sitemap-snapshot.json',
+    json: cli.json ?? false,
+    include: cli.include.length ? cli.include : cfg.include ?? [],
+    exclude: cli.exclude.length ? cli.exclude : cfg.exclude ?? [],
+  };
   if (!args.sitemap) {
-    console.error('ERROR: --sitemap <url> is required');
+    console.error('ERROR: --sitemap <url> is required (pass --sitemap or set "sitemap" in forge.config.json)');
     process.exit(2);
   }
   return args;
+}
+
+// Compile an array of regex strings (case-insensitive, matched against the URL path).
+function compileFilters(patterns, label) {
+  return patterns.map((p) => {
+    try {
+      return new RegExp(p, 'i');
+    } catch (err) {
+      console.error(`ERROR: invalid ${label} regex ${JSON.stringify(p)}: ${err.message}`);
+      process.exit(2);
+    }
+  });
+}
+
+// Keep a URL when it matches an include (or there are none) AND matches no exclude.
+// Returns { kept, droppedByExclude, droppedByInclude } as arrays of original URLs.
+function applyFilters(urls, includeRes, excludeRes) {
+  const kept = [];
+  const droppedByExclude = [];
+  const droppedByInclude = [];
+  for (const u of urls) {
+    const path = toPath(u);
+    if (path == null) continue;
+    if (excludeRes.some((re) => re.test(path))) {
+      droppedByExclude.push(u);
+    } else if (includeRes.length && !includeRes.some((re) => re.test(path))) {
+      droppedByInclude.push(u);
+    } else {
+      kept.push(u);
+    }
+  }
+  return { kept, droppedByExclude, droppedByInclude };
 }
 
 // ---------- fetch + parse (handles sitemap-index recursion) ----------
@@ -213,9 +276,21 @@ function looksLikeForm(path) {
 
 // ---------- main ----------
 const args = parseArgs(process.argv.slice(2));
-const urls = await collectUrls(args.sitemap);
-if (urls.length === 0) {
+const rawUrls = await collectUrls(args.sitemap);
+if (rawUrls.length === 0) {
   console.error('ERROR: no <loc> URLs found in sitemap (or nested sitemaps).');
+  process.exit(1);
+}
+
+// Optional URL filtering (e.g. drop staging test/sandbox pages). No filters = all URLs.
+const includeRes = compileFilters(args.include, 'include');
+const excludeRes = compileFilters(args.exclude, 'exclude');
+const { kept: urls, droppedByExclude, droppedByInclude } = applyFilters(rawUrls, includeRes, excludeRes);
+const droppedCount = droppedByExclude.length + droppedByInclude.length;
+if (urls.length === 0) {
+  console.error(
+    `ERROR: all ${rawUrls.length} URLs were filtered out — loosen include/exclude in forge.config.json (or the --include/--exclude flags).`,
+  );
   process.exit(1);
 }
 
@@ -227,7 +302,9 @@ const diff = diffPageTypes(discovered, registry, existingPaths);
 
 const snapshot = {
   sitemapUrl: args.sitemap,
+  totalUrlsRaw: rawUrls.length,
   totalUrls: urls.length,
+  filters: { include: args.include, exclude: args.exclude },
   minCluster: args.minCluster,
   sectionDepth: args.sectionDepth,
   pageTypeCount: Object.keys(discovered).length,
@@ -240,6 +317,14 @@ if (args.json) {
   process.stdout.write(JSON.stringify({ snapshot, diff }, null, 2) + '\n');
 } else {
   console.log(`\nSitemap: ${args.sitemap}`);
+  if (droppedCount) {
+    console.log(
+      `URLs: ${rawUrls.length} total -> ${urls.length} kept (dropped ${droppedCount}: ${droppedByExclude.length} by exclude, ${droppedByInclude.length} outside include)`,
+    );
+    const samples = [...droppedByExclude, ...droppedByInclude].map(toPath).slice(0, 8);
+    console.log(`  dropped e.g.: ${samples.join(', ')}${droppedCount > samples.length ? `, … (+${droppedCount - samples.length} more)` : ''}`);
+    console.log(`  filters: include=[${args.include.join(', ') || '-'}]  exclude=[${args.exclude.join(', ') || '-'}]`);
+  }
   console.log(`Total URLs: ${urls.length}  ->  ${snapshot.pageTypeCount} page types (min-cluster=${args.minCluster}, section-depth=${args.sectionDepth})\n`);
   const rows = Object.entries(discovered)
     .sort((a, b) => b[1].urlCount - a[1].urlCount)

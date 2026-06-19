@@ -1,0 +1,9 @@
+{
+  "_comment": "Optional controls for journey-forge. include/exclude are JS regex matched case-insensitively against the URL PATH (e.g. /get-care/news/back-pain). Empty arrays = no filtering (all sitemap URLs). Use exclude to drop staging test/sandbox/preview pages. CLI flags --include/--exclude override these. You may also add \"sitemap\", \"minCluster\", \"sectionDepth\" here as defaults so `npm run forge:parse` can run with no args.",
+  "_examples": {
+    "exclude": ["^/test/", "^/sandbox/", "/preview/", "-test$", "/qa/"],
+    "include": ["^/get-care/"]
+  },
+  "include": [],
+  "exclude": []
+}

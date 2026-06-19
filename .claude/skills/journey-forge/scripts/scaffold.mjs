@@ -44,6 +44,7 @@ const files = [
   ['tsconfig.json', 'tsconfig.json', false],
   ['env.example', '.env.example', true],
   ['gitignore', '.gitignore', false],
+  ['forge.config.json', 'forge.config.json', false],
   ['fixtures/test-fixtures.ts', 'fixtures/test-fixtures.ts', false],
   ['fixtures/a11y.ts', 'fixtures/a11y.ts', false],
   ['pages/BasePage.ts', 'pages/BasePage.ts', false],

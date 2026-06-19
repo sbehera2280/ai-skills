@@ -30,6 +30,7 @@ command in your terminal. **Where** tells you which is which.
 |------|----------|-------|
 | See the lifecycle table (what's ready / awaiting review / edited) | `npm run forge:status` | Terminal |
 | Re-discover page types after the sitemap changes | `npm run forge:parse -- --sitemap <url>` | Terminal |
+| Filter which sitemap URLs are in scope (drop staging test pages) | edit `forge.config.json`, or `npm run forge:parse -- --exclude "<regex>"` | Terminal / Editor |
 | Add a page type the parser didn't surface (or register a hand-written journey) | `npm run forge:add -- <pageType> --exemplar <path>` | Terminal |
 | Ground locators on a page by hand (prints the accessibility snapshot) | `npm run forge:inspect -- <url> [--click "Open search"]` | Terminal |
 | Run one viewport / open the HTML report | `npx playwright test --project=mobile` · `npm run report` | Terminal |
@@ -46,6 +47,32 @@ Each page type moves along two independent tracks, both shown by `forge:status`:
 
 Edit a confirmed journey and it re-flags as **"edited, rebuild"** (the `.md` is newer than its
 generated spec), so enriching in English always triggers a rebuild of just that type.
+
+## Filtering the sitemap (e.g. staging test pages)
+
+A staging sitemap often lists throwaway **test / sandbox / preview** pages you don't want to
+generate tests for. Control which URLs are in scope with `forge.config.json` at the repo root:
+
+```json
+{
+  "include": [],
+  "exclude": ["^/test/", "^/sandbox/", "/preview/", "-test$"]
+}
+```
+
+- `include` / `exclude` are **JS regex**, matched **case-insensitively against the URL path**
+  (e.g. `/get-care/news/back-pain`). A URL is kept when it matches an `include` (or there are
+  none) **and** matches no `exclude`.
+- **Empty/absent = no filtering** — behaves exactly as before.
+- CLI overrides for one-off runs: `npm run forge:parse -- --exclude "^/test/" --include "^/get-care/"`
+  (both repeatable; a flag replaces that array from the config).
+- The parser prints how many URLs were dropped (with samples) and records the filters in
+  `sitemap-snapshot.json` — nothing is dropped silently.
+
+**Persist filters in `forge.config.json` (commit it).** The skill is idempotent: if you only
+ever pass filters as flags, every re-run must re-supply identical flags or the registry diff
+churns (test pages reappear as `NEW`, then vanish as `REMOVED`). The committed config keeps
+re-runs reproducible and the filter set reviewable in PRs.
 
 ## Adding a new page type later
 

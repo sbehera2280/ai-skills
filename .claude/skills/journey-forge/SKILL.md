@@ -92,6 +92,12 @@ Read the printed diff `{ new, unchanged, changed, removed }` and `notableForms`.
 - Review the cluster table; adjust `--min-cluster` / `--section-depth` if granularity is
   off. Split grab-bag types and promote any `notableForms` URL into its own
   `destructive-form` page type if it deserves a dedicated journey.
+- **Filtering (e.g. staging test pages).** To keep throwaway test/sandbox/preview URLs out of
+  the page-type map, set `include`/`exclude` (arrays of JS regex matched case-insensitively
+  against the URL path) in `forge.config.json`, or pass `--include <regex>` / `--exclude
+  <regex>` (repeatable, override the config). No filters = all URLs (default). The parser
+  reports how many URLs were dropped and records the filters in the snapshot — never silent.
+  Persist filters in `forge.config.json` so re-runs stay reproducible (idempotent diff).
 
 ### PHASE A — Step 3 — Author natural-language journey DRAFTS for ALL target types
 For each `new` page type (and any promoted form type):
@@ -184,7 +190,8 @@ also flags any on-disk journey that isn't yet registered, pointing you at this c
 
 ## Files this skill owns
 - `scripts/scaffold.mjs` — stand up the harness from `assets/scaffold/` (self-contained).
-- `scripts/parse-sitemap.mjs`, `scripts/registry-lib.mjs` — deterministic clustering + diff.
+- `scripts/parse-sitemap.mjs`, `scripts/registry-lib.mjs` — deterministic clustering + diff;
+  honors `forge.config.json` include/exclude URL filters (and `--include`/`--exclude` flags).
 - `scripts/forge-status.mjs` — lifecycle table; `scripts/confirm.mjs` — the human gate.
 - `scripts/add-journey.mjs` — register a hand-added page type into the registry (and
   scaffold a draft journey if absent) so it shows up and builds.
