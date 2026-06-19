@@ -38,8 +38,8 @@ You can also try a skill directly inside a clone of this repo:
 git clone https://github.com/sbehera2280/ai-skills.git
 cd ai-skills
 node .claude/skills/journey-forge/scripts/init.mjs \
-  --base-url https://utmedicine.org \
-  --sitemap https://utmedicine.org/sitemap-utmedicine-en-us.xml
+  --base-url https://stage.utmedicine.org \
+  --sitemap https://stage.utmedicine.org/sitemap-utmedicine-en-us.xml
 # then open Claude Code here and follow the guide
 ```
 
